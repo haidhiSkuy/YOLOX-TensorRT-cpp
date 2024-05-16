@@ -1,5 +1,5 @@
 
-# Classify Anything with TensorRT
+# Classification with TensorRT
 
 ## setup
 
