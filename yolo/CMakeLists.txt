@@ -10,6 +10,8 @@ set(CMAKE_BUILD_TYPE Debug)
 # add_definitions("-Wall -g")
 find_package(CUDA REQUIRED)
 
+
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # cuda
@@ -25,11 +27,20 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Ofast -Wfatal-errors -
 find_package(OpenCV)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-add_executable(yolo src2/main.cpp)
+add_subdirectory(engine)
+
+add_executable(yolo main.cpp)
+target_link_libraries(yolo engine)
 target_link_libraries(yolo nvinfer)
 target_link_libraries(yolo nvinfer_plugin)
 target_link_libraries(yolo cudart)
 
 target_link_libraries(yolo ${OpenCV_LIBS})
+
+
+# target_include_directories(engine PUBLIC
+#                           "${PROJECT_BINARY_DIR}"
+#                           "${PROJECT_SOURCE_DIR}/engine"
+#                           )
 
 add_definitions(-O2 -pthread)
