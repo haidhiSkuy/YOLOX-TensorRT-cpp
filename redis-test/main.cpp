@@ -7,6 +7,18 @@
 #include <hiredis/async.h>
 #include <string.h> 
 #include <hiredis/adapters/libevent.h>
+#include <nlohmann/json.hpp>
+#include <opencv2/opencv.hpp>
+
+
+nlohmann::json rectToJson(const cv::Rect& rect) {
+    nlohmann::json j;
+    j["x"] = rect.x;
+    j["y"] = rect.y;
+    j["width"] = rect.width;
+    j["height"] = rect.height;
+    return j;
+} 
 
 
 int main (int argc, char **argv) {
@@ -17,9 +29,11 @@ int main (int argc, char **argv) {
     }   
 
     const std::string channel = "test_channel";
-    const std::string message = "Coba C++";
 
-    redisReply* reply = (redisReply*)redisCommand(c, "PUBLISH %s %s", channel.c_str(), message.c_str());
+    cv::Rect rect(10, 20, 100, 200);
+    nlohmann::json rectJson = rectToJson(rect);
+    std::string jsonString = rectJson.dump();
 
+    redisReply* reply = (redisReply*)redisCommand(c, "PUBLISH %s %s", channel.c_str(), jsonString.c_str()); 
 }
 
