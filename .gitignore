@@ -1,2 +1,4 @@
 testing/data
 widya/mnist
+**/build 
+result_image
