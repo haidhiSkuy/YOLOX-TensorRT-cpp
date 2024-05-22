@@ -13,20 +13,32 @@
 #include <iterator>
 
 
+
 void Yolo::infer(){ 
 
-    void* buffers[2];
-    cudaMalloc(&buffers[0], input_size * sizeof(float));  // input buffer
-    cudaMalloc(&buffers[1], output_size * sizeof(float)); // output buffer
+    bool status = context->executeV2(buffers.data()); 
 
-    cudaMemcpy(buffers[0], inputData.data(), input_size * sizeof(float), cudaMemcpyHostToDevice); 
+    if (!status) {
+        std::cerr << "Inference execution failed!" << std::endl;
+        std::exit(EXIT_FAILURE);
+    } else { 
+        std::cout << "Inference Success" << std::endl;
+    }
 
-    context->executeV2(buffers);
+  
+    // boxes 
+    std::vector<float> floatBoxes(bufferSizes[1] / sizeof(float));
+    cudaMemcpy(floatBoxes.data(), buffers[1], bufferSizes[1], cudaMemcpyDeviceToHost);
+    // std::vector<cv::Rect> boxes = convertToRects(floatBoxes, true); 
 
-    outputData.resize(output_size);
-    cudaMemcpy(outputData.data(), buffers[1], output_size * sizeof(float), cudaMemcpyDeviceToHost);
+    // scores
+    std::vector<float> scores(bufferSizes[2] / sizeof(float));
+    cudaMemcpy(scores.data(), buffers[2], bufferSizes[2], cudaMemcpyDeviceToHost);
 
-    std::cout << "Output size: " << outputData.size() << std::endl;
-    
+    // classes
+    std::vector<float> classes(bufferSizes[3] / sizeof(float));
+    cudaMemcpy(classes.data(), buffers[3], bufferSizes[3], cudaMemcpyDeviceToHost);
+
+    outputData = {floatBoxes, scores, classes};
 
 }

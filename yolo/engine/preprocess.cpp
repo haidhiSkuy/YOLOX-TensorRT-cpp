@@ -3,6 +3,8 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <cstdlib>
+#include <cuda_runtime_api.h>
+#include <vector>
 
 #include "NvInfer.h"
 
@@ -10,7 +12,7 @@ cv::Mat letterbox(
     const cv::Mat& src, 
     int target_width, 
     int target_height, 
-    cv::Scalar color = (128, 128, 128)) {
+    cv::Scalar color = (0, 0, 0)) {
         
     int original_width = src.cols;
     int original_height = src.rows;
@@ -34,62 +36,69 @@ cv::Mat letterbox(
 
 
 void Yolo::process_input(char* image_path){ 
-
-    // Get Input Dim
-    int numBindings = engine->getNbBindings(); 
-    int inputBindingIndex = engine->getBindingIndex("images");  
-    auto inputDims = engine->getBindingDimensions(inputBindingIndex); 
-
-    const int input_batch = inputDims.d[0];
-    const int input_channels = inputDims.d[1]; 
-    const int input_height = inputDims.d[2];
-    const int input_width = inputDims.d[3];
-
-    // Get Output Dim
-    int outputBindingIndex = engine->getBindingIndex("output0");  
-    auto outputDims = engine->getBindingDimensions(outputBindingIndex);
-
-    const int output_batch = outputDims.d[0];
-    const int output_feature = outputDims.d[1];
-    const int output_prediction = outputDims.d[2]; 
-
-     // Read Image
-    cv::Mat image = cv::imread(image_path);
-    if (image.empty()) {
+    // Read Image
+    input_image = cv::imread(image_path);
+    if (input_image.empty()) {
         std::cerr << "Error: Unable to load image" << std::endl;
         std::exit(EXIT_FAILURE);
     }
 
-    image = letterbox(image, 640, 640); // letterbox
+    const int inputHeight = 640;
+    const int inputWidth = 640;
+    const int inputChannels = 3;
+    const int inputSize = inputHeight * inputWidth * inputChannels;
 
-    image.convertTo(image, CV_32F, 1.0 / 255.0); // normalize
-    cv::cvtColor(image, image, cv::COLOR_BGR2RGB); // convert to rgb
+    cv::Mat preprocessed_image = letterbox(input_image, 640, 640); 
+    letterbox_image = preprocessed_image.clone();
 
+    preprocessed_image.convertTo(preprocessed_image, CV_32F);
+    cv::cvtColor(preprocessed_image, preprocessed_image, cv::COLOR_BGR2RGB);  
 
-    std::vector<cv::Mat> inputChannelsVec(input_channels); 
-    cv::split(image, inputChannelsVec);
-
-    input_size = input_batch * input_height * input_width * input_channels;
-    inputData.resize(input_size); 
-
-    output_size = output_batch * output_feature * output_prediction;
-    outputData.resize(output_size);
-
+    std::vector<cv::Mat> inputChannelsVec(3); 
+    cv::split(preprocessed_image, inputChannelsVec);
 
 
-    int channelSize = input_height * input_width;
-    for (int b = 0; b < input_batch; ++b) {
-        for (int c = 0; c < input_channels; ++c) {
-            // Get pointer to input data for zthis batch, channel
-            float* inputDataPtr = inputData.data() + (b * input_channels + c) * channelSize;
+    numBindings = engine->getNbBindings();  
 
-            // Copy image data to input buffer
-            cv::Mat channel = inputChannelsVec[c];
-
-            channel.convertTo(channel, CV_32FC1);
-            memcpy(inputDataPtr, channel.ptr<float>(0), channelSize * sizeof(float));
+    auto inputDims = engine->getBindingDimensions(0); 
+    for (int i = 0; i < inputDims.nbDims; ++i) {
+        input_size *= inputDims.d[i];
+    }  
+        
+    // Convert the image to NCHW format
+    std::vector<float> chwImage(inputHeight * inputWidth * inputChannels);
+    for (int c = 0; c < inputChannels; ++c) {
+        for (int h = 0; h < inputHeight; ++h) {
+            for (int w = 0; w < inputWidth; ++w) {
+                chwImage[c * inputHeight * inputWidth + h * inputWidth + w] = preprocessed_image.at<cv::Vec3f>(h, w)[c];
+            }
         }
     }
 
+    inputData = chwImage; 
     
+}   
+
+void Yolo::create_buffers(){ 
+    buffers.resize(numBindings);    
+    bufferSizes.resize(numBindings);
+
+    for(int binding_index = 0; binding_index < numBindings; binding_index++){         
+        nvinfer1::Dims dims = engine->getBindingDimensions(binding_index);
+        nvinfer1::DataType dtype = engine->getBindingDataType(binding_index);
+        const char* bindingName = engine->getBindingName(binding_index); 
+        std::cout << "binding index " << binding_index << " : " << bindingName << std::endl;
+
+        size_t size = 1;
+        for (int i = 0; i < dims.nbDims; ++i) {
+            size *= dims.d[i]; 
+        } 
+        size *= (dtype == nvinfer1::DataType::kFLOAT ? sizeof(float) : sizeof(int32_t));
+        bufferSizes[binding_index] = size;
+        cudaMalloc(&buffers[binding_index], size);
+    }
+
+    // input buffer
+    cudaMemcpy(buffers[0], inputData.data(), bufferSizes[0], cudaMemcpyHostToDevice); 
+
 }
