@@ -1,12 +1,13 @@
 #include "NvInfer.h"
 #include <vector>
 #include <opencv2/opencv.hpp>
-
+#include <hiredis/adapters/libevent.h>
+#include <string>
 
 class Yolo{ 
     public: 
-        Yolo(char* trt_path); 
-        void process_input(char* image_path);
+        Yolo(std::string trt_path, char* redis_hostname, int redis_port); 
+        void process_input(std::string image_path);
         void infer();
         void create_buffers();
         void post_process(); 
@@ -16,6 +17,9 @@ class Yolo{
         nvinfer1::ICudaEngine* engine = nullptr;
         nvinfer1::IRuntime* runtime = nullptr;
         nvinfer1::IExecutionContext* context = nullptr;
+
+        //redis 
+        redisContext *c; 
 
         //ouput bindings 
         int numBindings; 

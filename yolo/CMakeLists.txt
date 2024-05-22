@@ -27,10 +27,16 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Ofast -Wfatal-errors -
 find_package(OpenCV)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
+find_path(HIREDIS_INCLUDE_DIRS hiredis/hiredis.h HINTS "/usr/include")
+find_library(HIREDIS_LIB_HIREDIS NAMES hiredis HINTS "/usr/lib")
+set(HIREDIS_LIBRARIES ${HIREDIS_LIB_HIREDIS}) 
+include_directories(/usr/include/nlohmann) 
+
 add_subdirectory(engine)
 
 add_executable(yolo main.cpp)
 target_link_libraries(yolo engine)
+target_link_libraries(yolo ${HIREDIS_LIBRARIES})
 target_link_libraries(yolo nvinfer)
 target_link_libraries(yolo nvinfer_plugin)
 target_link_libraries(yolo cudart)

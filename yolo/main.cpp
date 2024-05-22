@@ -1,15 +1,15 @@
-#include <vector>
-#include <iostream> 
-#include <string>
-#include <opencv2/opencv.hpp>
 #include "engine/yolo_object_detect.h"
-
-
+#include <string>
 
 int main(int argc, char* argv[]) {
-  Yolo yolo("/workspaces/tensorrt/models/yolox/yolox2.trt");
+  
+  std::string engine_path = "/workspaces/tensorrt/models/yolox/yolox2.trt"; 
+  char* hostname = "localhost"; 
+  int port = 6379; 
 
-  yolo.process_input("/workspaces/tensorrt/test_images/dog_bike_car.jpg");
+  Yolo yolo(engine_path, hostname, port);
+
+  yolo.process_input("/workspaces/tensorrt/test_images/bus.jpg");
   yolo.create_buffers();
   yolo.infer(); 
   yolo.post_process();

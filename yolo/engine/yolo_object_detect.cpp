@@ -2,6 +2,7 @@
 #include "NvInfer.h"
 #include "NvInferPlugin.h"
 #include "NvInferRuntimeCommon.h"
+#include <hiredis/adapters/libevent.h>
 
 #include <math.h>
 #include <array>
@@ -24,7 +25,7 @@ class Logger : public nvinfer1::ILogger {
 }; 
 
 
-Yolo::Yolo(char* trt_path){ 
+Yolo::Yolo(std::string trt_path, char* redis_hostname, int redis_port){ 
     Logger gLogger;
 
     std::ifstream ifile(trt_path, std::ios::in | std::ios::binary);
@@ -47,5 +48,12 @@ Yolo::Yolo(char* trt_path){
     engine = runtime -> deserializeCudaEngine((void*)&buf[0], mdsize, nullptr);
     std::cout << "Load Success" << std::endl;    
 
-    context = engine->createExecutionContext();
+    context = engine->createExecutionContext(); 
+
+    //redis
+    c = redisConnect(redis_hostname, redis_port);
+    if (c->err) {
+        printf("error: %s\n", c->errstr);
+        std::abort();
+    }   
 }

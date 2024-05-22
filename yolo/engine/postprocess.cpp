@@ -1,18 +1,15 @@
 #include "yolo_object_detect.h"
-#include "NvInfer.h"
-#include "NvInferPlugin.h"
-#include "NvInferRuntimeCommon.h" 
-
 #include <opencv2/opencv.hpp>
 #include <opencv2/dnn.hpp>
 #include <cuda_runtime_api.h>
-
 #include <vector> 
 #include <iostream> 
 #include <string>
-
 #include <fstream>
-#include <iterator> 
+#include <iterator>
+
+#include <hiredis/adapters/libevent.h>
+#include <nlohmann/json.hpp>
 
 
 
@@ -94,6 +91,29 @@ cv::Mat draw_bbox(cv::Mat& image,std::vector<cv::Rect>& boxes, std::vector<float
     return image; 
 }
 
+std::string toJson(std::vector<cv::Rect>& boxes, std::vector<float>& classes, std::vector<int>& indices){
+    nlohmann::json output; 
+
+    int count = 0;
+    for (int idx : indices) {
+        cv::Rect rect = boxes[idx];
+        int classId = classes[idx];
+        std::string class_name = class_names[classId];
+    
+        nlohmann::json j;
+        j["class"] = class_name;
+        j["x"] = rect.x;
+        j["y"] = rect.y;
+        j["width"] = rect.width;
+        j["height"] = rect.height;
+
+        output[std::to_string(count)] = j;
+        count += 1;
+    }
+
+    std::string jsonString = output.dump();
+    return jsonString;
+}
 
 
 void Yolo::post_process(){ 
@@ -111,11 +131,13 @@ void Yolo::post_process(){
     // Perform NMS
     std::vector<cv::Rect> boxes = convertToRects(floatBoxes, true);
     performNMS(boxes, scores, classes, scoreThreshold, nmsThreshold, indices);
-
-
-
     cv::Mat drawed_image = draw_bbox(input_image, boxes, scores, classes, indices);
 
-    cv::imwrite("/workspaces/tensorrt/result_image/dog_bike.jpg", drawed_image);
+    
+    const std::string channel = "yolox"; 
+    std::string output_json = toJson(boxes, classes, indices);  
+    redisReply* reply = (redisReply*)redisCommand(c, "PUBLISH %s %s", channel.c_str(), output_json.c_str()); 
+
+    // cv::imwrite("/workspaces/tensorrt/result_image/dog_bike.jpg", drawed_image);
 
 }

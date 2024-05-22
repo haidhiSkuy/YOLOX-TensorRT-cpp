@@ -35,7 +35,7 @@ cv::Mat letterbox(
 }
 
 
-void Yolo::process_input(char* image_path){ 
+void Yolo::process_input(std::string image_path){ 
     // Read Image
     input_image = cv::imread(image_path);
     if (input_image.empty()) {
