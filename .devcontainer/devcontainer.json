@@ -3,10 +3,16 @@
 {
 	"name": "Tensor RT",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "nvcr.io/nvidia/tensorrt:23.05-py3",
+	"build": {
+        // Path is relative to the devcontainer.json file.
+        "dockerfile": "Dockerfile"
+    },
+	
 	"runArgs": [
 		"--gpus=all"
 	  ],
+
+	
 
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
