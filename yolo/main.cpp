@@ -7,9 +7,11 @@ int main(int argc, char* argv[]) {
   char* hostname = "localhost"; 
   int port = 6379; 
 
+
   Yolo yolo(engine_path, hostname, port);
 
-  yolo.process_input("/workspaces/tensorrt/test_images/bus.jpg");
+
+  yolo.process_input("/workspaces/tensorrt/test_images/dog_bike_car.jpg");
   yolo.create_buffers();
   yolo.infer(); 
   yolo.post_process();

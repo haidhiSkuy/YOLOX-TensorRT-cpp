@@ -30,12 +30,12 @@ class Yolo{
         int input_size = 1;
         int output_size = 1;
 
+
         std::vector<float> inputData;
         std::vector<std::vector<float>> outputData; 
 
-        // letterbox image 
+        // original image 
         cv::Mat input_image;
-        cv::Mat letterbox_image;
 };
 
 

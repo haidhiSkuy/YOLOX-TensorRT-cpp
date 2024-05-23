@@ -12,7 +12,7 @@ cv::Mat letterbox(
     const cv::Mat& src, 
     int target_width, 
     int target_height, 
-    cv::Scalar color = (0, 0, 0)) {
+    cv::Scalar color = (50, 50, 50)) {
         
     int original_width = src.cols;
     int original_height = src.rows;
@@ -49,7 +49,6 @@ void Yolo::process_input(std::string image_path){
     const int inputSize = inputHeight * inputWidth * inputChannels;
 
     cv::Mat preprocessed_image = letterbox(input_image, 640, 640); 
-    letterbox_image = preprocessed_image.clone();
 
     preprocessed_image.convertTo(preprocessed_image, CV_32F);
     cv::cvtColor(preprocessed_image, preprocessed_image, cv::COLOR_BGR2RGB);  
@@ -87,8 +86,6 @@ void Yolo::create_buffers(){
         nvinfer1::Dims dims = engine->getBindingDimensions(binding_index);
         nvinfer1::DataType dtype = engine->getBindingDataType(binding_index);
         const char* bindingName = engine->getBindingName(binding_index); 
-        std::cout << "binding index " << binding_index << " : " << bindingName << std::endl;
-
         size_t size = 1;
         for (int i = 0; i < dims.nbDims; ++i) {
             size *= dims.d[i]; 
