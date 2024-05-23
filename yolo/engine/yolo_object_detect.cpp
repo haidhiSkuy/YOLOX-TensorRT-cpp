@@ -51,9 +51,11 @@ Yolo::Yolo(std::string trt_path, char* redis_hostname, int redis_port){
     context = engine->createExecutionContext(); 
 
     //redis
-    c = redisConnect(redis_hostname, redis_port);
-    if (c->err) {
-        printf("error: %s\n", c->errstr);
+    redis = redisConnect(redis_hostname, redis_port);
+    if (redis->err) {
+        printf("error: %s\n", redis->errstr);
         std::abort();
-    }   
+    } else { 
+      std::cout << "Redis Connection Success" << std::endl;
+    }
 }

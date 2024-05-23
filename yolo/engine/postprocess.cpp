@@ -55,15 +55,26 @@ void performNMS(
     std::vector<float>& classes, 
     float scoreThreshold, 
     float nmsThreshold, 
-    std::vector<int>& indices) {
+    std::vector<int>& indices,
+    std::vector<cv::Rect>& filtered_boxes, 
+    std::vector<float>& filtered_scores, 
+    std::vector<int>& filtered_classes
+    ) {
     
     cv::dnn::NMSBoxes(boxes, scores, scoreThreshold, nmsThreshold, indices);
+    
+    for (int idx : indices) {
+        filtered_boxes.push_back(boxes[idx]); 
+        filtered_scores.push_back(scores[idx]);
+        filtered_classes.push_back(classes[idx]);
+    }
+
 }
 
+std::vector<std::vector<int>> scale_bbox(cv::Mat input_image, std::vector<cv::Rect> boxes){ 
 
-void draw_bbox(cv::Mat& input_image,std::vector<cv::Rect>& boxes, std::vector<float>& scores, std::vector<float>& classes, std::vector<int>& indices){
-
-    for (int idx : indices) {
+    std::vector<std::vector<int>> scaled_coordinate; 
+    for (int idx = 0; idx < boxes.size(); idx++) {
         cv::Rect box = boxes[idx];
         int x1_lb = static_cast<int>(box.x - box.width / 2);
         int y1_lb = static_cast<int>(box.y - box.height / 2);
@@ -89,12 +100,24 @@ void draw_bbox(cv::Mat& input_image,std::vector<cv::Rect>& boxes, std::vector<fl
         x2_original = std::max(0, std::min(input_image.cols, x2_original));
         y2_original = std::max(0, std::min(input_image.rows, y2_original));
 
-        
-        cv::Point p1(x1_original, y1_original); 
-        cv::Point p2(x2_original, y2_original);
+        std::vector<int> scaled = {x1_original, y1_original, x2_original, y2_original}; 
+        scaled_coordinate.push_back(scaled);
+    }
 
-        float score = scores[idx];
-        int classId = classes[idx];
+    return scaled_coordinate;
+}
+
+
+void draw_bbox(cv::Mat& input_image, std::vector<std::vector<int>> bbox, std::vector<float> scores, std::vector<int> classes){
+
+    for(int i=0; i<classes.size(); i++) {
+        std::vector<int> box = bbox[i];
+
+        cv::Point p1(box[0], box[1]); 
+        cv::Point p2(box[2], box[3]);
+
+        float score = scores[i];
+        int classId = classes[i];
         std::string class_name = class_names[classId];
 
         cv::rectangle(input_image, p1, p2, cv::Scalar(0, 255, 0), 2);
@@ -103,46 +126,48 @@ void draw_bbox(cv::Mat& input_image,std::vector<cv::Rect>& boxes, std::vector<fl
         std::string label = class_name + ": " + cv::format("%.2f", score);
         cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine); 
 
-    
         cv::rectangle(
             input_image, 
-            cv::Rect(cv::Point(x1_original, y1_original - labelSize.height), cv::Size(labelSize.width, labelSize.height + baseLine)),
+            cv::Rect(cv::Point(box[0], box[1]-labelSize.height), cv::Size(labelSize.width, labelSize.height + baseLine)),
             cv::Scalar(0, 255, 0), cv::FILLED
             );
 
         cv::putText(
             input_image, label, 
-            cv::Point(x1_original, y1_original), 
+            cv::Point(box[0], box[1]), 
             cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1
         );
     }
 }
 
 
-std::string toJson(std::vector<cv::Rect>& boxes, std::vector<float>& classes, std::vector<int>& indices){
+void redis_pubsub(
+    redisContext *redis, 
+    std::vector<std::vector<int>> bbox, 
+    std::vector<float> scores, 
+    std::vector<int> classes,
+    std::string channel
+){
     nlohmann::json output; 
 
-    int count = 0;
-    for (int idx : indices) {
-        cv::Rect rect = boxes[idx];
-        int classId = classes[idx];
+    for(int i=0; i < classes.size(); i++) {
+        std::vector<int> box = bbox[i];
+        float score = scores[i];
+        int classId = classes[i];
         std::string class_name = class_names[classId];
     
         nlohmann::json j;
         j["class"] = class_name;
-        j["x"] = rect.x;
-        j["y"] = rect.y;
-        j["width"] = rect.width;
-        j["height"] = rect.height;
-
-        output[std::to_string(count)] = j;
-        count += 1;
+        j["score"] = score;
+        j["x1"] = box[0];
+        j["y1"] = box[1];
+        j["x2"] = box[2];
+        j["y2"] = box[3];
+        output["object_"+std::to_string(i)] = j;
     }
-
     std::string jsonString = output.dump();
-    return jsonString;
+    redisReply* reply = (redisReply*)redisCommand(redis, "PUBLISH %s %s", channel.c_str(), jsonString.c_str()); 
 }
-
 
 void Yolo::post_process(){ 
     std::vector<float> floatBoxes = outputData[0]; 
@@ -155,15 +180,24 @@ void Yolo::post_process(){
 
     std::vector<int> indices;
     std::vector<cv::Rect> boxes = convertToRects(floatBoxes, true);
-    performNMS(boxes, scores, classes, scoreThreshold, nmsThreshold, indices);
+
+    std::vector<cv::Rect> filtered_boxes;
+    std::vector<float> filtered_scores;
+    std::vector<int> filtered_classes;
+    performNMS(
+        boxes, scores, classes, scoreThreshold, nmsThreshold, 
+        indices, filtered_boxes, filtered_scores, filtered_classes
+    );
+
+    //scale bbox 
+    std::vector<std::vector<int>> scaled_bbox = scale_bbox(input_image, filtered_boxes); 
 
     // Draw Bboxes
-    draw_bbox(input_image, boxes, scores, classes, indices);
+    draw_bbox(input_image, scaled_bbox, filtered_scores, filtered_classes);
 
     // send to redis
     const std::string channel = "yolox"; 
-    std::string output_json = toJson(boxes, classes, indices);  
-    // redisReply* reply = (redisReply*)redisCommand(c, "PUBLISH %s %s", channel.c_str(), output_json.c_str()); 
+    redis_pubsub(redis, scaled_bbox, filtered_scores, filtered_classes, channel);
 
     cv::imwrite("/workspaces/tensorrt/result_image/result.jpg", input_image);
 

@@ -19,7 +19,7 @@ class Yolo{
         nvinfer1::IExecutionContext* context = nullptr;
 
         //redis 
-        redisContext *c; 
+        redisContext *redis; 
 
         //ouput bindings 
         int numBindings; 
