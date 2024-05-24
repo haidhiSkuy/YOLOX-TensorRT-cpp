@@ -18,16 +18,19 @@ ENV LC_ALL=en_US.UTF-8
 RUN locale-gen en_US.UTF-8
 RUN dpkg-reconfigure locales 
 
-# hiredis and json 
+# Make hiredis and nlohmann json installation folder
 RUN mkdir /opt/tensorrt/hiredis 
 RUN mkdir /opt/tensorrt/nlohmann 
 
+# Clone hiredis and nlohmann json repository
 RUN git clone https://github.com/redis/hiredis.git /opt/tensorrt/hiredis 
 RUN git clone https://github.com/nlohmann/json.git /opt/tensorrt/nlohmann 
 
+# make hiredis
 RUN mkdir /opt/tensorrt/hiredis/build && cd /opt/tensorrt/hiredis/build && cmake /opt/tensorrt/hiredis && make -j$(nproc)
 RUN apt-get install libhiredis-dev -y
 
+# make nlohmann json & move to /usr/include
 RUN mkdir /opt/tensorrt/nlohmann/build && cd /opt/tensorrt/nlohmann/build && cmake /opt/tensorrt/nlohmann && make -j$(nproc)
 RUN mv /opt/tensorrt/nlohmann/include/nlohmann /usr/include 
 RUN apt-get install libevent-dev -y
