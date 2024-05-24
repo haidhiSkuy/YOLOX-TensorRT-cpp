@@ -21,10 +21,7 @@ void Yolo::infer(){
     if (!status) {
         std::cerr << "Inference execution failed!" << std::endl;
         std::exit(EXIT_FAILURE);
-    } else { 
-        std::cout << "Inference Success" << std::endl;
     }
-
   
     // boxes 
     std::vector<float> floatBoxes(bufferSizes[1] / sizeof(float));

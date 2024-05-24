@@ -35,67 +35,32 @@ cv::Mat letterbox(
 }
 
 
-void Yolo::process_input(std::string image_path){ 
-    // Read Image
-    input_image = cv::imread(image_path);
-    if (input_image.empty()) {
-        std::cerr << "Error: Unable to load image" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
+void Yolo::process_input(cv::Mat frame){ 
+    input_image = frame.clone();
 
     const int inputHeight = 640;
     const int inputWidth = 640;
     const int inputChannels = 3;
     const int inputSize = inputHeight * inputWidth * inputChannels;
 
-    cv::Mat preprocessed_image = letterbox(input_image, 640, 640); 
+    cv::Mat preprocessed_frame = letterbox(frame, 640, 640); 
 
-    preprocessed_image.convertTo(preprocessed_image, CV_32F);
-    cv::cvtColor(preprocessed_image, preprocessed_image, cv::COLOR_BGR2RGB);  
+    preprocessed_frame.convertTo(preprocessed_frame, CV_32F);
+    cv::cvtColor(preprocessed_frame, preprocessed_frame, cv::COLOR_BGR2RGB);  
 
     std::vector<cv::Mat> inputChannelsVec(3); 
-    cv::split(preprocessed_image, inputChannelsVec);
+    cv::split(preprocessed_frame, inputChannelsVec);
 
-
-    numBindings = engine->getNbBindings();  
-
-    auto inputDims = engine->getBindingDimensions(0); 
-    for (int i = 0; i < inputDims.nbDims; ++i) {
-        input_size *= inputDims.d[i];
-    }  
-        
+      
     // Convert the image to NCHW format
     std::vector<float> chwImage(inputHeight * inputWidth * inputChannels);
     for (int c = 0; c < inputChannels; ++c) {
         for (int h = 0; h < inputHeight; ++h) {
             for (int w = 0; w < inputWidth; ++w) {
-                chwImage[c * inputHeight * inputWidth + h * inputWidth + w] = preprocessed_image.at<cv::Vec3f>(h, w)[c];
+                chwImage[c * inputHeight * inputWidth + h * inputWidth + w] = preprocessed_frame.at<cv::Vec3f>(h, w)[c];
             }
         }
     }
 
-    inputData = chwImage; 
-    
+    cudaMemcpy(buffers[0], chwImage.data(), bufferSizes[0], cudaMemcpyHostToDevice);
 }   
-
-void Yolo::create_buffers(){ 
-    buffers.resize(numBindings);    
-    bufferSizes.resize(numBindings);
-
-    for(int binding_index = 0; binding_index < numBindings; binding_index++){         
-        nvinfer1::Dims dims = engine->getBindingDimensions(binding_index);
-        nvinfer1::DataType dtype = engine->getBindingDataType(binding_index);
-        const char* bindingName = engine->getBindingName(binding_index); 
-        size_t size = 1;
-        for (int i = 0; i < dims.nbDims; ++i) {
-            size *= dims.d[i]; 
-        } 
-        size *= (dtype == nvinfer1::DataType::kFLOAT ? sizeof(float) : sizeof(int32_t));
-        bufferSizes[binding_index] = size;
-        cudaMalloc(&buffers[binding_index], size);
-    }
-
-    // input buffer
-    cudaMemcpy(buffers[0], inputData.data(), bufferSizes[0], cudaMemcpyHostToDevice); 
-
-}

@@ -25,6 +25,27 @@ std::string class_names[] = {
         "hair drier", "toothbrush"
 };
 
+const float color_list[80][3] =
+{{0.000, 0.447, 0.741}, {0.850, 0.325, 0.098}, {0.929, 0.694, 0.125}, {0.494, 0.184, 0.556},
+ {0.466, 0.674, 0.188}, {0.301, 0.745, 0.933}, {0.635, 0.078, 0.184}, {0.300, 0.300, 0.300},
+ {0.600, 0.600, 0.600},{1.000, 0.000, 0.000},{1.000, 0.500, 0.000},{0.749, 0.749, 0.000},
+ {0.000, 1.000, 0.000},{0.000, 0.000, 1.000},{0.667, 0.000, 1.000},{0.333, 0.333, 0.000},
+ {0.333, 0.667, 0.000},{0.333, 1.000, 0.000},{0.667, 0.333, 0.000},{0.667, 0.667, 0.000},
+ {0.667, 1.000, 0.000},{1.000, 0.333, 0.000},{1.000, 0.667, 0.000},{1.000, 1.000, 0.000},
+ {0.000, 0.333, 0.500},{0.000, 0.667, 0.500},{0.000, 1.000, 0.500},{0.333, 0.000, 0.500},
+ {0.333, 0.333, 0.500},{0.333, 0.667, 0.500},{0.333, 1.000, 0.500},{0.667, 0.000, 0.500},
+ {0.667, 0.333, 0.500},{0.667, 0.667, 0.500},{0.667, 1.000, 0.500},{1.000, 0.000, 0.500},
+ {1.000, 0.333, 0.500},{1.000, 0.667, 0.500},{1.000, 1.000, 0.500},{0.000, 0.333, 1.000},
+ {0.000, 0.667, 1.000},{0.000, 1.000, 1.000},{0.333, 0.000, 1.000},{0.333, 0.333, 1.000},
+ {0.333, 0.667, 1.000},{0.333, 1.000, 1.000},{0.667, 0.000, 1.000},{0.667, 0.333, 1.000},
+ {0.667, 0.667, 1.000},{0.667, 1.000, 1.000},{1.000, 0.000, 1.000},{1.000, 0.333, 1.000},
+ {1.000, 0.667, 1.000},{0.333, 0.000, 0.000},{0.500, 0.000, 0.000},{0.667, 0.000, 0.000},
+ {0.833, 0.000, 0.000},{1.000, 0.000, 0.000},{0.000, 0.167, 0.000},{0.000, 0.333, 0.000},
+ {0.000, 0.500, 0.000},{0.000, 0.667, 0.000},{0.000, 0.833, 0.000},{0.000, 1.000, 0.000},
+ {0.000, 0.000, 0.167},{0.000, 0.000, 0.333},{0.000, 0.000, 0.500},{0.000, 0.000, 0.667},
+ {0.000, 0.000, 0.833},{0.000, 0.000, 1.000},{0.000, 0.000, 0.000},{0.143, 0.143, 0.143},
+ {0.286, 0.286, 0.286},{0.429, 0.429, 0.429},{0.571, 0.571, 0.571},{0.714, 0.714, 0.714},
+ {0.857, 0.857, 0.857},{0.000, 0.447, 0.741},{0.314, 0.717, 0.741},{0.50, 0.5, 0}};
 
 std::vector<cv::Rect> convertToRects(const std::vector<float>& floatBoxes, bool isXYWH) {
     std::vector<cv::Rect> boxes;
@@ -120,7 +141,18 @@ void draw_bbox(cv::Mat& input_image, std::vector<std::vector<int>> bbox, std::ve
         int classId = classes[i];
         std::string class_name = class_names[classId];
 
-        cv::rectangle(input_image, p1, p2, cv::Scalar(0, 255, 0), 2);
+        cv::Scalar color = cv::Scalar(color_list[classId][0], color_list[classId][1], color_list[classId][2]);
+        float c_mean = cv::mean(color)[0];
+        cv::Scalar txt_color;
+        if (c_mean > 0.5){
+            txt_color = cv::Scalar(0, 0, 0);
+        } else {
+            txt_color = cv::Scalar(255, 255, 255);
+        }
+        cv::Scalar txt_bk_color = color * 0.7 * 255;
+
+
+        cv::rectangle(input_image, p1, p2, color*255, 2);
 
         int baseLine;
         std::string label = class_name + ": " + cv::format("%.2f", score);
@@ -129,13 +161,13 @@ void draw_bbox(cv::Mat& input_image, std::vector<std::vector<int>> bbox, std::ve
         cv::rectangle(
             input_image, 
             cv::Rect(cv::Point(box[0], box[1]-labelSize.height), cv::Size(labelSize.width, labelSize.height + baseLine)),
-            cv::Scalar(0, 255, 0), cv::FILLED
+            txt_bk_color, cv::FILLED
             );
 
         cv::putText(
             input_image, label, 
             cv::Point(box[0], box[1]), 
-            cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1
+            cv::FONT_HERSHEY_SIMPLEX, 0.5, txt_color, 1
         );
     }
 }
@@ -169,7 +201,7 @@ void redis_pubsub(
     redisReply* reply = (redisReply*)redisCommand(redis, "PUBLISH %s %s", channel.c_str(), jsonString.c_str()); 
 }
 
-void Yolo::post_process(){ 
+cv::Mat Yolo::post_process(){ 
     std::vector<float> floatBoxes = outputData[0]; 
     std::vector<float> scores = outputData[1];
     std::vector<float> classes = outputData[2];
@@ -194,11 +226,6 @@ void Yolo::post_process(){
 
     // Draw Bboxes
     draw_bbox(input_image, scaled_bbox, filtered_scores, filtered_classes);
-
-    // send to redis
-    const std::string channel = "yolox"; 
-    redis_pubsub(redis, scaled_bbox, filtered_scores, filtered_classes, channel);
-
-    cv::imwrite("/workspaces/tensorrt/result_image/result.jpg", input_image);
+    return input_image;
 
 }

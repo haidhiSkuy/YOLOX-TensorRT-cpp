@@ -7,10 +7,9 @@
 class Yolo{ 
     public: 
         Yolo(std::string trt_path, char* redis_hostname, int redis_port); 
-        void process_input(std::string image_path);
+        void process_input(cv::Mat frame);
         void infer();
-        void create_buffers();
-        void post_process(); 
+        cv::Mat post_process(); 
     
     private: 
         // inference engine
@@ -30,8 +29,6 @@ class Yolo{
         int input_size = 1;
         int output_size = 1;
 
-
-        std::vector<float> inputData;
         std::vector<std::vector<float>> outputData; 
 
         // original image 

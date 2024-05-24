@@ -50,6 +50,28 @@ Yolo::Yolo(std::string trt_path, char* redis_hostname, int redis_port){
 
     context = engine->createExecutionContext(); 
 
+    // CREATE BUFFER
+    numBindings = engine->getNbBindings();
+    auto inputDims = engine->getBindingDimensions(0); 
+    for (int i = 0; i < inputDims.nbDims; ++i) {
+        input_size *= inputDims.d[i];
+    }  
+
+    buffers.resize(numBindings);    
+    bufferSizes.resize(numBindings);
+    for(int binding_index = 0; binding_index < numBindings; binding_index++){         
+        nvinfer1::Dims dims = engine->getBindingDimensions(binding_index);
+        nvinfer1::DataType dtype = engine->getBindingDataType(binding_index);
+        const char* bindingName = engine->getBindingName(binding_index); 
+        size_t size = 1;
+        for (int i = 0; i < dims.nbDims; ++i) {
+            size *= dims.d[i]; 
+        } 
+        size *= (dtype == nvinfer1::DataType::kFLOAT ? sizeof(float) : sizeof(int32_t));
+        bufferSizes[binding_index] = size;
+        cudaMalloc(&buffers[binding_index], size);
+    }
+
     //redis
     redis = redisConnect(redis_hostname, redis_port);
     if (redis->err) {
