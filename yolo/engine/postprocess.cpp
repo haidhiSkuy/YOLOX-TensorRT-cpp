@@ -226,6 +226,11 @@ cv::Mat Yolo::post_process(){
 
     // Draw Bboxes
     draw_bbox(input_image, scaled_bbox, filtered_scores, filtered_classes);
+
+    // Redis 
+    std::string channel = "yolox c++";
+    redis_pubsub(redis, scaled_bbox, filtered_scores, filtered_classes, channel);
+
     return input_image;
 
 }
